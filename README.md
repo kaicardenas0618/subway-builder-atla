@@ -1,26 +1,17 @@
 # Avatar: The Last Airbender Subway Builder Maps
 
-This repository builds Avatar: The Last Airbender Subway Builder Maps packages that are ready to import and load in-game.
+This repository contains the pipeline for generating Avatar: The Last Airbender maps for Subway Builder.
 
-Current map in this repository:
+Current maps in this repository:
 - Ba Sing Se
 
-The project is intentionally small and contract-first:
-- required raw files are produced with reference-compatible schema shapes
-- PMTiles is generated with a minimal operational layer strategy
-- final archive is validated against the game import contract
+## Make Commands
 
-## Public Commands
-
-- `make all`: full production map build
+- `make prod`: full production map build
 - `make dev`: small production-ready downtown/core build
 - `make serve`: serve `debug_map.html` and existing outputs (no rebuild)
 
-Optional:
-- `make install`
-- `make test`
-
-## What `make all` Does
+## What `make prod` Does
 
 1. Generates required raw files:
    - `roads.geojson`
