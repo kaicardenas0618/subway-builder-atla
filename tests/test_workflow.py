@@ -44,7 +44,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue((out / name).exists(), msg=f"missing {name}")
 
     def test_archive_contract_root_files(self):
-        archive = ROOT / "outputs" / "dev" / "FC1-dev.zip"
+        archive = ROOT / "outputs" / "dev" / "BS1-dev.zip"
         self.assertTrue(archive.exists())
         with zipfile.ZipFile(archive, "r") as zf:
             names = {i.filename for i in zf.infolist() if not i.is_dir()}

@@ -1,6 +1,9 @@
 # Product spec
 
-This repo builds fictional city map packages for the game.
+This repo builds Avatar: The Last Airbender Subway Builder Maps packages for the game.
+
+Current shipped map in this repository:
+- Ba Sing Se
 
 Public workflow only:
 - make all

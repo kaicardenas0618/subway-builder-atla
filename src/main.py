@@ -9,7 +9,7 @@ from .utils import env_port
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build fictional city map packages")
+    parser = argparse.ArgumentParser(description="Build Avatar: The Last Airbender Subway Builder Maps packages")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="Run a production-compatible map build")

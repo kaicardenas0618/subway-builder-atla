@@ -102,7 +102,7 @@ def generate_runways(cfg: dict[str, Any], out_path: Path) -> dict[str, Any]:
                 "properties": {
                     "roadType": "runway",
                     "z_order": 0,
-                    "osm_way_id": f"fictional-runway-{i + 1}",
+                    "osm_way_id": f"ba-sing-se-runway-{i + 1}",
                     "area": 0,
                 },
                 "geometry": {"type": "Polygon", "coordinates": [ring]},

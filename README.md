@@ -1,6 +1,9 @@
-# Subway Builder ATLA
+# Avatar: The Last Airbender Subway Builder Maps
 
-This repository generates fictional city map packages that are ready to import and load in-game.
+This repository builds Avatar: The Last Airbender Subway Builder Maps packages that are ready to import and load in-game.
+
+Current map in this repository:
+- Ba Sing Se
 
 The project is intentionally small and contract-first:
 - required raw files are produced with reference-compatible schema shapes
@@ -31,7 +34,7 @@ Optional:
 
 Output location:
 - `outputs/prod/`
-- final archive: `outputs/prod/FC1-prod.zip`
+- final archive: `outputs/prod/BS1-prod.zip`
 
 ## What `make dev` Does
 
@@ -39,7 +42,7 @@ Builds a smaller, denser downtown/core slice with the same essential contract an
 
 Output location:
 - `outputs/dev/`
-- final archive: `outputs/dev/FC1-dev.zip`
+- final archive: `outputs/dev/BS1-dev.zip`
 
 ## Debug Viewer
 
