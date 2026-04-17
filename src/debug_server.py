@@ -7,12 +7,10 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-
 def pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return int(s.getsockname()[1])
-
 
 class RangeRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, directory: str | None = None, **kwargs):
@@ -77,7 +75,6 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
             del self.range
             return
         super().copyfile(source, outputfile)
-
 
 def serve(root_dir: Path, port: int | None) -> None:
     host = "127.0.0.1"

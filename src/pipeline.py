@@ -16,16 +16,12 @@ from .package_map import package_map
 from .utils import end_stage, ensure_dir, start_stage, write_json
 from .validation import validate_demand_integrity, validate_outputs
 
-
 def _load_config(config_path: Path) -> dict[str, Any]:
-    # Config files are JSON-compatible YAML for zero-dependency parsing.
     return json.loads(config_path.read_text(encoding="utf-8"))
-
 
 def _validate_map_code(code: str) -> None:
     if code != "BSS":
         raise RuntimeError("map code must be exactly BSS")
-
 
 def _build_config_json(cfg: dict[str, Any], demand_data: dict[str, Any]) -> dict[str, Any]:
     map_cfg = cfg["map"]
@@ -42,7 +38,6 @@ def _build_config_json(cfg: dict[str, Any], demand_data: dict[str, Any]) -> dict
         "thumbnailBbox": map_cfg["thumbnailBbox"],
         "initialViewState": map_cfg["initialViewState"],
     }
-
 
 def run_build(mode: str, clean: bool = False) -> tuple[Path, Path]:
     config_path = Path("config") / ("prod.yaml" if mode == "prod" else "dev.yaml")

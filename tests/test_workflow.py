@@ -12,7 +12,6 @@ from src.debug_server import RangeRequestHandler, pick_free_port
 from src.pipeline import run_build
 from src.validation import validate_demand_integrity
 
-
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = {
     "roads.geojson",
@@ -22,7 +21,6 @@ REQUIRED = {
     "BSS.pmtiles",
     "config.json",
 }
-
 
 class WorkflowTests(unittest.TestCase):
     @classmethod
@@ -102,7 +100,6 @@ class WorkflowTests(unittest.TestCase):
         prod_cfg = json.loads((ROOT / "outputs" / "prod" / "config.json").read_text(encoding="utf-8"))
         dev_cfg = json.loads((ROOT / "outputs" / "dev" / "config.json").read_text(encoding="utf-8"))
         self.assertGreater(prod_cfg["population"], dev_cfg["population"] * 2)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,61 +3,78 @@ from __future__ import annotations
 import math
 from typing import Any
 
+def _in_ellipse(x: float, y: float, cx: float, cy: float, rx: float, ry: float) -> bool:
+    dx = (x - cx) / max(1e-9, rx)
+    dy = (y - cy) / max(1e-9, ry)
+    return dx * dx + dy * dy <= 1.0
 
-def _norm(x: float, y: float, layout: dict[str, Any]) -> tuple[float, float, float, float, float]:
-    cx, cy = layout["center"]
-    mw = layout["metro_scale"]["w"]
-    mh = layout["metro_scale"]["h"]
-    nx = (x - cx) / max(1e-9, mw)
-    ny = (y - cy) / max(1e-9, mh)
-    r = math.sqrt((nx * 1.2) ** 2 + (ny * 1.05) ** 2)
-    ang = math.atan2(ny, nx)
-    return nx, ny, r, ang, cx
+def _in_rect(x: float, y: float, cx: float, cy: float, hx: float, hy: float) -> bool:
+    return abs(x - cx) <= hx and abs(y - cy) <= hy
 
+def classify_district(x: float, y: float, plan: dict[str, Any]) -> str:
+    cx, cy = plan["center"]
+    mw = plan["metro_scale"]["w"]
+    mh = plan["metro_scale"]["h"]
 
-def classify_district(x: float, y: float, layout: dict[str, Any]) -> str:
-    nx, ny, r, ang, _ = _norm(x, y, layout)
-
-    lake = layout["lake"]
-    lcx, lcy = lake["center"]
-    lrx, lry = lake["rx"], lake["ry"]
-    if ((x - lcx) / max(1e-9, lrx)) ** 2 + ((y - lcy) / max(1e-9, lry)) ** 2 <= 1.0:
+    lake = plan["lake"]
+    if _in_ellipse(x, y, *lake["center"], lake["rx"], lake["ry"]):
         return "water"
 
-    for airport_key in ["primary_airport", "secondary_airport"]:
-        ax, ay = layout[airport_key]["center"]
-        if abs(x - ax) < layout["metro_scale"]["w"] * 0.08 and abs(y - ay) < layout["metro_scale"]["h"] * 0.06:
+    for key in ["primary_airport", "secondary_airport"]:
+        ap = plan[key]
+        if _in_rect(x, y, *ap["center"], ap["size_x"] * 0.6, ap["size_y"] * 0.6):
             return "airport"
 
-    for c in layout["campuses"]:
-        cx, cy = c["center"]
-        rr = c["radius"]
-        if ((x - cx) / max(1e-9, layout["metro_scale"]["w"] * rr)) ** 2 + ((y - cy) / max(1e-9, layout["metro_scale"]["h"] * rr)) ** 2 <= 1.0:
+    for c in plan["campuses"]:
+        cr = c["radius"]
+        if _in_ellipse(x, y, *c["center"], mw * cr, mh * cr):
             return "campus"
 
-    sx, sy = layout["sectors"]["industrial"]
-    if abs(x - sx) < layout["metro_scale"]["w"] * 0.12 and abs(y - sy) < layout["metro_scale"]["h"] * 0.10:
-        return "industrial"
+    for z in plan["industrial_zones"]:
+        if _in_ellipse(x, y, *z["center"], z["rx"], z["ry"]):
+            return "industrial"
 
-    lx, ly = layout["sectors"]["logistics"]
-    if abs(x - lx) < layout["metro_scale"]["w"] * 0.10 and abs(y - ly) < layout["metro_scale"]["h"] * 0.08:
-        return "logistics"
+    for z in plan["logistics_zones"]:
+        if _in_ellipse(x, y, *z["center"], z["rx"], z["ry"]):
+            return "logistics"
 
-    ex, ey = layout["sectors"]["entertainment"]
-    if abs(x - ex) < layout["metro_scale"]["w"] * 0.07 and abs(y - ey) < layout["metro_scale"]["h"] * 0.06:
-        return "entertainment"
+    for z in plan["entertainment_zones"]:
+        if _in_ellipse(x, y, *z["center"], z["rx"], z["ry"]):
+            return "entertainment"
 
-    if r < 0.055:
-        return "imperial_core"
-    if r < 0.11:
+    for p in plan["parks"]:
+        if _in_ellipse(x, y, *p["center"], p["rx"], p["ry"]):
+            return "park"
+
+    nx = (x - cx) / max(1e-9, mw * 0.5)
+    ny = (y - cy) / max(1e-9, mh * 0.5)
+    r = math.sqrt(nx * nx + ny * ny)
+    ang = math.atan2(ny, nx)
+
+    cbd = plan["cbd_crescent"]
+    if _in_ellipse(x, y, *cbd["center"], cbd["rx"], cbd["ry"]):
         return "cbd"
-    if r < 0.18:
+
+    for sc in plan["secondary_centers"]:
+        if _in_ellipse(x, y, *sc["center"], mw * sc["radius"], mh * sc["radius"]):
+            return "subcenter"
+
+    rf = plan["ring_radii_frac"]
+    if r < rf[0]:
+        return "imperial_core"
+    if r < rf[1]:
         return "inner_mixed"
-    if r < 0.27:
+    if r < rf[2]:
         return "inner_residential"
-    if r < 0.39:
+    if r < rf[3]:
         return "outer_residential"
 
-    if abs(math.sin(ang * 2.3)) < 0.18:
+    if abs(math.sin(ang * 2.1)) < 0.22:
         return "peri_urban_mixed"
     return "peri_residential"
+
+BUILDABLE_DISTRICTS = frozenset({
+    "imperial_core", "cbd", "subcenter", "inner_mixed", "inner_residential",
+    "outer_residential", "peri_urban_mixed", "peri_residential",
+    "industrial", "logistics", "entertainment", "campus", "airport",
+})

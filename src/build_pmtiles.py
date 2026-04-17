@@ -9,7 +9,6 @@ from typing import Any
 
 from .utils import file_size_mb
 
-
 def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
     roads_path = output_dir / "roads.geojson"
     runways_path = output_dir / "runways_taxiways.geojson"
@@ -33,28 +32,48 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
         print(f"[pmtiles] up-to-date: {pmtiles_path}")
         return pmtiles_path
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False, encoding="utf-8") as tmp:
-        tmp_path = Path(tmp.name)
+    buildings_data = json.loads(buildings_path.read_text(encoding="utf-8"))
 
+    generalized_features = []
+    detailed_features = []
+    for idx, building in enumerate(buildings_data["buildings"]):
+        props = {"id": idx, "floors": building["f"]}
+        feat = {
+            "type": "Feature",
+            "properties": props,
+            "geometry": {"type": "Polygon", "coordinates": building["p"]},
+        }
+        detailed_features.append(feat)
+        if building["f"] >= 5:
+            generalized_features.append(feat)
+
+    roads_data = json.loads(roads_path.read_text(encoding="utf-8"))
+    major_road_classes = {"expressway", "trunk", "arterial"}
+    major_roads = [f for f in roads_data.get("features", [])
+                   if f.get("properties", {}).get("roadClass") in major_road_classes]
+    all_roads = roads_data.get("features", [])
+
+    tmp_dir = Path(tempfile.mkdtemp())
     try:
-        buildings_data = json.loads(buildings_path.read_text(encoding="utf-8"))
-        building_features = []
-        for idx, building in enumerate(buildings_data["buildings"]):
-            building_features.append(
-                {
-                    "type": "Feature",
-                    "properties": {"id": idx, "floors": building["f"]},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": building["p"],
-                    },
-                }
-            )
+        buildings_detail_path = tmp_dir / "buildings_detail.geojson"
+        buildings_detail_path.write_text(
+            json.dumps({"type": "FeatureCollection", "features": detailed_features}),
+            encoding="utf-8")
 
-        tmp_path.write_text(
-            json.dumps({"type": "FeatureCollection", "features": building_features}),
-            encoding="utf-8",
-        )
+        buildings_gen_path = tmp_dir / "buildings_gen.geojson"
+        buildings_gen_path.write_text(
+            json.dumps({"type": "FeatureCollection", "features": generalized_features}),
+            encoding="utf-8")
+
+        major_roads_path = tmp_dir / "major_roads.geojson"
+        major_roads_path.write_text(
+            json.dumps({"type": "FeatureCollection", "features": major_roads}),
+            encoding="utf-8")
+
+        all_roads_path = tmp_dir / "all_roads.geojson"
+        all_roads_path.write_text(
+            json.dumps({"type": "FeatureCollection", "features": all_roads}),
+            encoding="utf-8")
 
         minzoom = str(int(cfg["build"]["pmtiles_minzoom"]))
         maxzoom = str(int(cfg["build"]["pmtiles_maxzoom"]))
@@ -62,21 +81,23 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
         cmd = [
             "tippecanoe",
             "-f",
-            "-o",
-            str(pmtiles_path),
-            "-Z",
-            minzoom,
-            "-z",
-            maxzoom,
-            "--coalesce-densest-as-needed",
-            "--extend-zooms-if-still-dropping",
+            "-o", str(pmtiles_path),
+            "-Z", minzoom,
+            "-z", maxzoom,
             "--no-line-simplification",
-            "-L",
-            f"roads:{roads_path}",
-            "-L",
-            f"buildings:{tmp_path}",
-            "-L",
-            f"runways:{runways_path}",
+            "--no-tile-size-limit",
+            "--extend-zooms-if-still-dropping",
+            "-L", json.dumps({"file": str(major_roads_path), "layer": "roads",
+                              "minzoom": int(minzoom), "maxzoom": int(maxzoom)}),
+            "-L", json.dumps({"file": str(all_roads_path), "layer": "roads_detail",
+                              "minzoom": min(int(maxzoom), max(10, int(minzoom) + 1)),
+                              "maxzoom": int(maxzoom)}),
+            "-L", json.dumps({"file": str(buildings_gen_path), "layer": "buildings",
+                              "minzoom": int(minzoom), "maxzoom": int(maxzoom)}),
+            "-L", json.dumps({"file": str(buildings_detail_path), "layer": "buildings_detail",
+                              "minzoom": min(int(maxzoom), max(12, int(minzoom) + 2)),
+                              "maxzoom": int(maxzoom)}),
+            "-L", f"runways:{runways_path}",
         ]
 
         if water_path.exists():
@@ -97,7 +118,7 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
         )
 
     finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return pmtiles_path

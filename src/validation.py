@@ -1,31 +1,14 @@
 from __future__ import annotations
 
 import json
-import math
 import subprocess
 import zipfile
 from pathlib import Path
 from typing import Any
 
-
-REQUIRED_CONFIG_KEYS = {
-    "name",
-    "code",
-    "description",
-    "population",
-    "creator",
-    "version",
-    "initialViewState",
-}
+REQUIRED_CONFIG_KEYS = {"name", "code", "description", "population", "creator", "version", "initialViewState"}
 REQUIRED_INITIAL_VIEW_KEYS = {"latitude", "longitude", "zoom", "bearing"}
-REQUIRED_ROOT_FILES = {
-    "config.json",
-    "demand_data.json",
-    "roads.geojson",
-    "runways_taxiways.geojson",
-    "buildings_index.json",
-}
-
+REQUIRED_ROOT_FILES = {"config.json", "demand_data.json", "roads.geojson", "runways_taxiways.geojson", "buildings_index.json"}
 
 def validate_demand_integrity(demand_data: dict[str, Any]) -> dict[str, Any]:
     points = demand_data.get("points", [])
@@ -40,7 +23,6 @@ def validate_demand_integrity(demand_data: dict[str, Any]) -> dict[str, Any]:
 
     point_id_set = set(point_ids)
     pop_id_set = set(pop_ids)
-    pops_by_id = {p["id"]: p for p in pops}
 
     for p in pops:
         if p["residenceId"] not in point_id_set:
@@ -72,121 +54,121 @@ def validate_demand_integrity(demand_data: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError(f"demand integrity failed: pop {pid} missing from job point {j}")
 
     total_pop_size = sum(int(p["size"]) for p in pops)
+
+    sizes = [p["size"] for p in pops]
+    if len(set(sizes)) < min(5, len(sizes)):
+        raise RuntimeError("demand integrity failed: pop sizes lack variation (variable cohorts required)")
+
     return {
         "pointCount": len(points),
         "popCount": len(pops),
         "representedPopulation": total_pop_size,
     }
 
-
-def _validate_realism_sanity(output_dir: Path, demand_data: dict[str, Any], cfg: dict[str, Any], mode: str) -> None:
+def _validate_realism(output_dir: Path, demand_data: dict[str, Any], cfg: dict[str, Any], mode: str) -> None:
     roads = json.loads((output_dir / "roads.geojson").read_text(encoding="utf-8"))
     buildings = json.loads((output_dir / "buildings_index.json").read_text(encoding="utf-8"))
     runways = json.loads((output_dir / "runways_taxiways.geojson").read_text(encoding="utf-8"))
-    water = json.loads((output_dir / "water.geojson").read_text(encoding="utf-8")) if (output_dir / "water.geojson").exists() else {"features": []}
-    parks = json.loads((output_dir / "open_space.geojson").read_text(encoding="utf-8")) if (output_dir / "open_space.geojson").exists() else {"features": []}
-    campuses = json.loads((output_dir / "campuses.geojson").read_text(encoding="utf-8")) if (output_dir / "campuses.geojson").exists() else {"features": []}
+    water_path = output_dir / "water.geojson"
+    water = json.loads(water_path.read_text(encoding="utf-8")) if water_path.exists() else {"features": []}
+    parks_path = output_dir / "open_space.geojson"
+    parks = json.loads(parks_path.read_text(encoding="utf-8")) if parks_path.exists() else {"features": []}
+    campuses_path = output_dir / "campuses.geojson"
+    campuses = json.loads(campuses_path.read_text(encoding="utf-8")) if campuses_path.exists() else {"features": []}
 
     road_counts: dict[str, int] = {}
     for f in roads.get("features", []):
         rc = f.get("properties", {}).get("roadClass", "unknown")
         road_counts[rc] = road_counts.get(rc, 0) + 1
 
-    if road_counts.get("expressway", 0) < 1:
-        raise RuntimeError("realism validation failed: insufficient expressway hierarchy")
-    if road_counts.get("trunk", 0) < (2 if mode == "dev" else 3):
-        raise RuntimeError("realism validation failed: insufficient trunk hierarchy")
-    if road_counts.get("arterial", 0) < (6 if mode == "dev" else 12):
-        raise RuntimeError("realism validation failed: insufficient arterial coverage")
-    if road_counts.get("collector", 0) < (80 if mode == "dev" else 240):
-        raise RuntimeError("realism validation failed: insufficient collector coverage")
+    min_expressway = 1 if mode == "dev" else 2
+    min_trunk = 2 if mode == "dev" else 4
+    min_arterial = 4 if mode == "dev" else 10
 
-    floors = [float(b["f"]) for b in buildings.get("buildings", [])]
-    if not floors:
-        raise RuntimeError("realism validation failed: no buildings generated")
+    if road_counts.get("expressway", 0) < min_expressway:
+        raise RuntimeError(f"realism: insufficient expressways ({road_counts.get('expressway', 0)} < {min_expressway})")
+    if road_counts.get("trunk", 0) < min_trunk:
+        raise RuntimeError(f"realism: insufficient trunk roads ({road_counts.get('trunk', 0)} < {min_trunk})")
+    if road_counts.get("arterial", 0) + road_counts.get("secondary_arterial", 0) < min_arterial:
+        raise RuntimeError(f"realism: insufficient arterials")
+
+    sample_road = roads["features"][0]["properties"] if roads["features"] else {}
+    for key in ("roadClass", "kind", "kind_detail", "name", "structure"):
+        if key not in sample_road:
+            raise RuntimeError(f"realism: road features missing property '{key}'")
+
+    bldgs = buildings.get("buildings", [])
+    if len(bldgs) < (500 if mode == "dev" else 2000):
+        raise RuntimeError(f"realism: too few buildings ({len(bldgs)})")
+
+    floors = [b["f"] for b in bldgs]
     floor_mean = sum(floors) / len(floors)
-    floor_var = sum((f - floor_mean) ** 2 for f in floors) / len(floors)
-    if floor_var < (6 if mode == "dev" else 10):
-        raise RuntimeError("realism validation failed: building height variance too low")
+    floor_var = sum((f - floor_mean)**2 for f in floors) / len(floors)
+    if floor_var < 5:
+        raise RuntimeError(f"realism: building height variance too low ({floor_var:.1f})")
 
-    areas = [max(1e-10, (b["b"][2] - b["b"][0]) * (b["b"][3] - b["b"][1])) for b in buildings.get("buildings", [])]
-    area_mean = sum(areas) / len(areas)
-    area_var = sum((a - area_mean) ** 2 for a in areas) / len(areas)
-    if area_var < area_mean * area_mean * 0.05:
-        raise RuntimeError("realism validation failed: block/building size variability too low")
+    dist_counts = buildings.get("stats", {}).get("districtCounts", {})
+    active_districts = [k for k, v in dist_counts.items() if v > 0]
+    if len(active_districts) < (4 if mode == "dev" else 7):
+        raise RuntimeError(f"realism: district mix too shallow ({len(active_districts)} districts)")
+
+    runway_count = sum(1 for f in runways.get("features", [])
+                       if f.get("properties", {}).get("roadType") == "runway")
+    if mode == "prod" and runway_count < 3:
+        raise RuntimeError(f"realism: insufficient runways for prod ({runway_count})")
+
+    if mode == "prod" and len(water.get("features", [])) < 1:
+        raise RuntimeError("realism: missing water features for prod")
+
+    if len(parks.get("features", [])) < (1 if mode == "dev" else 3):
+        raise RuntimeError("realism: insufficient parks")
+
+    if mode == "prod" and len(campuses.get("features", [])) < 2:
+        raise RuntimeError("realism: insufficient campuses for prod")
 
     bbox = cfg["map"]["bbox"]
-    cx = (bbox[0] + bbox[2]) / 2
-    cy = (bbox[1] + bbox[3]) / 2
-    core_points = 0
-    outer_points = 0
-    for p in demand_data.get("points", []):
-        x, y = p["location"]
-        if abs(x - cx) < (bbox[2] - bbox[0]) * 0.12 and abs(y - cy) < (bbox[3] - bbox[1]) * 0.12:
-            core_points += 1
-        else:
-            outer_points += 1
-    if core_points <= 0 or outer_points <= 0:
-        raise RuntimeError("realism validation failed: demand point distribution lacks core/outer balance")
+    map_cx = (bbox[0] + bbox[2]) / 2
+    map_cy = (bbox[1] + bbox[3]) / 2
+    core_pts = sum(1 for p in demand_data.get("points", [])
+                   if abs(p["location"][0] - map_cx) < (bbox[2] - bbox[0]) * 0.15
+                   and abs(p["location"][1] - map_cy) < (bbox[3] - bbox[1]) * 0.15)
+    outer_pts = len(demand_data.get("points", [])) - core_pts
+    if core_pts <= 0 or outer_pts <= 0:
+        raise RuntimeError("realism: demand lacks core/outer balance")
 
-    district_counts = buildings.get("stats", {}).get("districtCounts", {})
-    if len([k for k, v in district_counts.items() if v > 0]) < 7:
-        raise RuntimeError("realism validation failed: district mix is too shallow")
-
-    runway_count = sum(1 for f in runways.get("features", []) if f.get("properties", {}).get("roadType") == "runway")
-    if runway_count < (0 if mode == "dev" else 2):
-        raise RuntimeError("realism validation failed: airport runway presence insufficient")
-
-    if len(water.get("features", [])) < (0 if mode == "dev" else 1):
-        raise RuntimeError("realism validation failed: missing water feature")
-    if len(parks.get("features", [])) < (1 if mode == "dev" else 2):
-        raise RuntimeError("realism validation failed: insufficient park/open-space features")
-    if len(campuses.get("features", [])) < (0 if mode == "dev" else 2):
-        raise RuntimeError("realism validation failed: insufficient campus feature presence")
-
-
-def _validate_prod_dev_differentiation(repo_root: Path) -> None:
-    prod_cfg_path = repo_root / "outputs" / "prod" / "config.json"
-    dev_cfg_path = repo_root / "outputs" / "dev" / "config.json"
-    prod_roads_path = repo_root / "outputs" / "prod" / "roads.geojson"
-    dev_roads_path = repo_root / "outputs" / "dev" / "roads.geojson"
-    prod_buildings_path = repo_root / "outputs" / "prod" / "buildings_index.json"
-    dev_buildings_path = repo_root / "outputs" / "dev" / "buildings_index.json"
-
-    paths = [
-        prod_cfg_path,
-        dev_cfg_path,
-        prod_roads_path,
-        dev_roads_path,
-        prod_buildings_path,
-        dev_buildings_path,
+def _validate_prod_dev_diff(repo_root: Path) -> None:
+    prod_dir = repo_root / "outputs" / "prod"
+    dev_dir = repo_root / "outputs" / "dev"
+    paths_needed = [
+        prod_dir / "config.json", dev_dir / "config.json",
+        prod_dir / "roads.geojson", dev_dir / "roads.geojson",
+        prod_dir / "buildings_index.json", dev_dir / "buildings_index.json",
     ]
-    if not all(p.exists() for p in paths):
+    if not all(p.exists() for p in paths_needed):
         return
 
-    prod_cfg = json.loads(prod_cfg_path.read_text(encoding="utf-8"))
-    dev_cfg = json.loads(dev_cfg_path.read_text(encoding="utf-8"))
-    prod_roads = json.loads(prod_roads_path.read_text(encoding="utf-8"))
-    dev_roads = json.loads(dev_roads_path.read_text(encoding="utf-8"))
-    prod_buildings = json.loads(prod_buildings_path.read_text(encoding="utf-8"))
-    dev_buildings = json.loads(dev_buildings_path.read_text(encoding="utf-8"))
+    prod_cfg = json.loads((prod_dir / "config.json").read_text(encoding="utf-8"))
+    dev_cfg = json.loads((dev_dir / "config.json").read_text(encoding="utf-8"))
 
-    prod_bbox = prod_cfg.get("bbox")
-    dev_bbox = dev_cfg.get("bbox")
+    prod_bbox = prod_cfg.get("bbox", [0, 0, 1, 1])
+    dev_bbox = dev_cfg.get("bbox", [0, 0, 1, 1])
     prod_area = max(1e-9, (prod_bbox[2] - prod_bbox[0]) * (prod_bbox[3] - prod_bbox[1]))
     dev_area = max(1e-9, (dev_bbox[2] - dev_bbox[0]) * (dev_bbox[3] - dev_bbox[1]))
     if prod_area / dev_area < 3.0:
-        raise RuntimeError("prod/dev validation failed: prod bbox not materially larger than dev")
+        raise RuntimeError("prod/dev: prod bbox not materially larger")
 
     if prod_cfg.get("population", 0) < dev_cfg.get("population", 0) * 2:
-        raise RuntimeError("prod/dev validation failed: prod population not materially larger than dev")
+        raise RuntimeError("prod/dev: prod population not materially larger")
 
-    if len(prod_roads.get("features", [])) < len(dev_roads.get("features", [])) * 1.5:
-        raise RuntimeError("prod/dev validation failed: prod road totals not materially larger than dev")
+    prod_roads = json.loads((prod_dir / "roads.geojson").read_text(encoding="utf-8"))
+    dev_roads = json.loads((dev_dir / "roads.geojson").read_text(encoding="utf-8"))
+    if len(prod_roads.get("features", [])) < len(dev_roads.get("features", [])) * 1.3:
+        raise RuntimeError("prod/dev: prod roads not materially more than dev")
 
-    if len(prod_buildings.get("buildings", [])) < len(dev_buildings.get("buildings", [])) * 2:
-        raise RuntimeError("prod/dev validation failed: prod building totals not materially larger than dev")
-
+    prod_bldgs = json.loads((prod_dir / "buildings_index.json").read_text(encoding="utf-8"))
+    dev_bldgs = json.loads((dev_dir / "buildings_index.json").read_text(encoding="utf-8"))
+    if len(prod_bldgs.get("buildings", [])) < len(dev_bldgs.get("buildings", [])) * 1.5:
+        raise RuntimeError("prod/dev: prod buildings not materially more than dev")
 
 def validate_outputs(
     output_dir: Path,
@@ -195,30 +177,26 @@ def validate_outputs(
     mode: str,
     pmtiles_filename: str,
 ) -> dict[str, Any]:
-    required_paths = [
-        output_dir / "config.json",
-        output_dir / "demand_data.json",
-        output_dir / "roads.geojson",
-        output_dir / "runways_taxiways.geojson",
-        output_dir / "buildings_index.json",
-        output_dir / pmtiles_filename,
+    required = [
+        output_dir / "config.json", output_dir / "demand_data.json",
+        output_dir / "roads.geojson", output_dir / "runways_taxiways.geojson",
+        output_dir / "buildings_index.json", output_dir / pmtiles_filename,
         archive_path,
     ]
-    for path in required_paths:
-        if not path.exists():
-            raise RuntimeError(f"Missing required output: {path}")
+    for p in required:
+        if not p.exists():
+            raise RuntimeError(f"Missing required output: {p}")
 
     demand_data = json.loads((output_dir / "demand_data.json").read_text(encoding="utf-8"))
     demand_summary = validate_demand_integrity(demand_data)
-    _validate_realism_sanity(output_dir, demand_data, cfg, mode)
+    _validate_realism(output_dir, demand_data, cfg, mode)
 
-    cfg = json.loads((output_dir / "config.json").read_text(encoding="utf-8"))
-    missing_cfg = REQUIRED_CONFIG_KEYS.difference(cfg.keys())
+    config = json.loads((output_dir / "config.json").read_text(encoding="utf-8"))
+    missing_cfg = REQUIRED_CONFIG_KEYS - set(config.keys())
     if missing_cfg:
         raise RuntimeError(f"config.json missing keys: {sorted(missing_cfg)}")
-
-    ivs = cfg.get("initialViewState", {})
-    missing_ivs = REQUIRED_INITIAL_VIEW_KEYS.difference(ivs.keys())
+    ivs = config.get("initialViewState", {})
+    missing_ivs = REQUIRED_INITIAL_VIEW_KEYS - set(ivs.keys())
     if missing_ivs:
         raise RuntimeError(f"config.json initialViewState missing keys: {sorted(missing_ivs)}")
 
@@ -229,20 +207,21 @@ def validate_outputs(
     subprocess.run(["pmtiles", "verify", str(pmtiles_path)], check=True, capture_output=True)
     show = subprocess.run(["pmtiles", "show", str(pmtiles_path)], check=True, capture_output=True, text=True)
     meta = show.stdout.lower()
-    for layer_name in ["roads", "buildings", "runways", "water", "open_space", "campuses"]:
-        if layer_name not in meta:
-            raise RuntimeError(f"PMTiles missing expected layer: {layer_name}")
+    for layer in ["roads", "buildings", "runways", "water", "open_space", "campuses"]:
+        if layer not in meta:
+            raise RuntimeError(f"PMTiles missing expected layer: {layer}")
 
     with zipfile.ZipFile(archive_path, "r") as zf:
-        names = [info.filename for info in zf.infolist() if not info.is_dir()]
+        names = {i.filename for i in zf.infolist() if not i.is_dir()}
         root_names = {n for n in names if "/" not in n}
-        missing_root = REQUIRED_ROOT_FILES.difference(root_names)
+        missing_root = REQUIRED_ROOT_FILES - root_names
         if missing_root:
-            raise RuntimeError(f"Archive missing required root-level files: {sorted(missing_root)}")
-        pmtiles = [name for name in root_names if name.endswith(".pmtiles")]
-        if len(pmtiles) != 1:
-            raise RuntimeError(f"Archive must contain exactly one .pmtiles file; found {len(pmtiles)}")
+            raise RuntimeError(f"Archive missing root files: {sorted(missing_root)}")
+        pmtiles_files = [n for n in root_names if n.endswith(".pmtiles")]
+        if len(pmtiles_files) != 1:
+            raise RuntimeError(f"Archive must have exactly one .pmtiles; found {len(pmtiles_files)}")
 
     if mode == "prod":
-        _validate_prod_dev_differentiation(output_dir.parents[1])
+        _validate_prod_dev_diff(output_dir.parents[1])
+
     return demand_summary

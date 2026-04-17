@@ -7,7 +7,6 @@ from .debug_server import serve
 from .pipeline import run_build
 from .utils import env_port
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build Avatar: The Last Airbender Subway Builder Maps packages")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -21,7 +20,6 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
-
 def main() -> None:
     args = parse_args()
     if args.command == "build":
@@ -34,7 +32,6 @@ def main() -> None:
         return
 
     raise RuntimeError(f"Unsupported command: {args.command}")
-
 
 if __name__ == "__main__":
     main()

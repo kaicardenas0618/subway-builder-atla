@@ -3,7 +3,6 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-
 ARCHIVE_FILES = [
     "config.json",
     "demand_data.json",
@@ -11,7 +10,6 @@ ARCHIVE_FILES = [
     "runways_taxiways.geojson",
     "buildings_index.json",
 ]
-
 
 def package_map(output_dir: Path, package_name: str, pmtiles_filename: str) -> Path:
     archive_path = output_dir / package_name
