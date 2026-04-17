@@ -1,6 +1,6 @@
 {
   "map": {
-    "code": "BS1",
+    "code": "BSS",
     "name": "Ba Sing Se (Downtown Core)",
     "description": "Small dense Ba Sing Se downtown/core slice for fast production-compatible map build loops.",
     "creator": "atla-subway-builder-maps",
@@ -28,6 +28,6 @@
     "pmtiles_minzoom": 10,
     "pmtiles_maxzoom": 14,
     "output_dir": "outputs/dev",
-    "package_name": "BS1-dev.zip"
+    "package_name": "BSS-dev.zip"
   }
 }

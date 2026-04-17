@@ -1,6 +1,6 @@
 {
   "map": {
-    "code": "BS1",
+    "code": "BSS",
     "name": "Ba Sing Se",
     "description": "Large Ba Sing Se production map built for in-game import and runtime testing.",
     "creator": "atla-subway-builder-maps",
@@ -28,6 +28,6 @@
     "pmtiles_minzoom": 9,
     "pmtiles_maxzoom": 14,
     "output_dir": "outputs/prod",
-    "package_name": "BS1-prod.zip"
+    "package_name": "BSS-prod.zip"
   }
 }

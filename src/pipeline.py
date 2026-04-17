@@ -17,12 +17,8 @@ def _load_config(config_path: Path) -> dict[str, Any]:
 
 
 def _validate_map_code(code: str) -> None:
-    if not (2 <= len(code) <= 4):
-        raise RuntimeError("map code must be 2-4 characters")
-    if not code[:2].isupper() or not code[:2].isalpha():
-        raise RuntimeError("map code must start with two uppercase letters")
-    if any(not c.isdigit() for c in code[2:]):
-        raise RuntimeError("map code suffix may only contain digits")
+    if code != "BSS":
+        raise RuntimeError("map code must be exactly BSS")
 
 
 def _build_config_json(cfg: dict[str, Any], demand_data: dict[str, Any]) -> dict[str, Any]:

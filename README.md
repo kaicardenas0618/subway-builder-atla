@@ -25,7 +25,7 @@ Current maps in this repository:
 
 Output location:
 - `outputs/prod/`
-- final archive: `outputs/prod/BS1-prod.zip`
+- final archive: `outputs/prod/BSS-prod.zip`
 
 ## What `make dev` Does
 
@@ -33,7 +33,7 @@ Builds a smaller, denser downtown/core slice with the same essential contract an
 
 Output location:
 - `outputs/dev/`
-- final archive: `outputs/dev/BS1-dev.zip`
+- final archive: `outputs/dev/BSS-dev.zip`
 
 ## Debug Viewer
 
