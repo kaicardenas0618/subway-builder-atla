@@ -14,9 +14,18 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
     roads_path = output_dir / "roads.geojson"
     runways_path = output_dir / "runways_taxiways.geojson"
     buildings_path = output_dir / "buildings_index.json"
-    pmtiles_path = output_dir / "map.pmtiles"
+    water_path = output_dir / "water.geojson"
+    open_space_path = output_dir / "open_space.geojson"
+    pmtiles_filename = f"{cfg['map']['code']}.pmtiles"
+    pmtiles_path = output_dir / pmtiles_filename
 
-    newest_input = max(p.stat().st_mtime for p in [roads_path, runways_path, buildings_path])
+    inputs = [roads_path, runways_path, buildings_path]
+    if water_path.exists():
+        inputs.append(water_path)
+    if open_space_path.exists():
+        inputs.append(open_space_path)
+
+    newest_input = max(p.stat().st_mtime for p in inputs)
     if pmtiles_path.exists() and pmtiles_path.stat().st_mtime >= newest_input:
         print(f"[pmtiles] up-to-date: {pmtiles_path}")
         return pmtiles_path
@@ -65,6 +74,11 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
             "-L",
             f"runways:{runways_path}",
         ]
+
+        if water_path.exists():
+            cmd += ["-L", f"water:{water_path}"]
+        if open_space_path.exists():
+            cmd += ["-L", f"open_space:{open_space_path}"]
 
         start = time.time()
         subprocess.run(cmd, check=True)

@@ -5,10 +5,16 @@ from pathlib import Path
 from typing import Any
 
 from .build_pmtiles import build_pmtiles
-from .generate_raw import generate_buildings_index, generate_demand_data, generate_roads, generate_runways
+from .generate_raw import (
+    generate_buildings_index,
+    generate_context_layers,
+    generate_demand_data,
+    generate_roads,
+    generate_runways,
+)
 from .package_map import package_map
 from .utils import end_stage, ensure_dir, start_stage, write_json
-from .validation import validate_outputs
+from .validation import validate_demand_integrity, validate_outputs
 
 
 def _load_config(config_path: Path) -> dict[str, Any]:
@@ -43,18 +49,22 @@ def run_build(mode: str, clean: bool = False) -> tuple[Path, Path]:
     cfg = _load_config(config_path)
 
     _validate_map_code(cfg["map"]["code"])
+    pmtiles_filename = f"{cfg['map']['code']}.pmtiles"
 
     output_dir = Path(cfg["build"]["output_dir"])
     ensure_dir(output_dir)
 
     if clean:
+        for stale_pmtiles in output_dir.glob("*.pmtiles"):
+            stale_pmtiles.unlink()
         for filename in [
             "roads.geojson",
             "runways_taxiways.geojson",
             "buildings_index.json",
             "demand_data.json",
+            "water.geojson",
+            "open_space.geojson",
             "config.json",
-            "map.pmtiles",
             cfg["build"]["package_name"],
         ]:
             file_path = output_dir / filename
@@ -64,8 +74,19 @@ def run_build(mode: str, clean: bool = False) -> tuple[Path, Path]:
     t = start_stage("generate essential raw outputs")
     generate_roads(cfg, output_dir / "roads.geojson")
     generate_runways(cfg, output_dir / "runways_taxiways.geojson")
+    generate_context_layers(cfg, output_dir)
     buildings = generate_buildings_index(cfg, output_dir / "buildings_index.json")
     demand_data = generate_demand_data(cfg, buildings, output_dir / "demand_data.json")
+    end_stage(t)
+
+    t = start_stage("validate demand integrity")
+    demand_summary = validate_demand_integrity(demand_data)
+    print(
+        "[demand] "
+        f"points={demand_summary['pointCount']} "
+        f"pops={demand_summary['popCount']} "
+        f"represented_population={demand_summary['representedPopulation']}"
+    )
     end_stage(t)
 
     t = start_stage("generate config.json")
@@ -78,11 +99,11 @@ def run_build(mode: str, clean: bool = False) -> tuple[Path, Path]:
     end_stage(t)
 
     t = start_stage("package final import archive")
-    archive_path = package_map(output_dir, cfg["build"]["package_name"])
+    archive_path = package_map(output_dir, cfg["build"]["package_name"], pmtiles_filename)
     end_stage(t)
 
     t = start_stage("validate outputs and archive contract")
-    validate_outputs(output_dir, archive_path)
+    validate_outputs(output_dir, archive_path, cfg, mode, pmtiles_filename)
     end_stage(t)
 
     print(f"[result] output directory: {output_dir}")

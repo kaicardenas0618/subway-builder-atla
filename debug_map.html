@@ -49,7 +49,7 @@
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode") || "prod";
     const base = `outputs/${mode}`;
-    const pmtilesPath = `${base}/map.pmtiles`;
+    let pmtilesPath = `${base}/BSS.pmtiles`;
 
     const modeEl = document.getElementById("mode");
     const pmtilesEl = document.getElementById("pmtilesPath");
@@ -84,6 +84,25 @@
     async function main() {
       await checkRangeSupport();
 
+      let initialCenter = [113.24, 39.91];
+      let initialZoom = 10.8;
+      try {
+        const cfgResp = await fetch(`${base}/config.json`);
+        if (cfgResp.ok) {
+          const cfg = await cfgResp.json();
+          if (cfg.initialViewState) {
+            initialCenter = [cfg.initialViewState.longitude, cfg.initialViewState.latitude];
+            initialZoom = cfg.initialViewState.zoom;
+          }
+          if (cfg.code) {
+            pmtilesPath = `${base}/${cfg.code}.pmtiles`;
+            pmtilesEl.textContent = pmtilesPath;
+          }
+        }
+      } catch (err) {
+        log(`Could not load config view state: ${err}`);
+      }
+
       const protocol = new pmtiles.Protocol();
       maplibregl.addProtocol("pmtiles", protocol.tile);
 
@@ -105,18 +124,30 @@
               type: "geojson",
               data: `${base}/runways_taxiways.geojson`,
             },
+            waterRaw: {
+              type: "geojson",
+              data: `${base}/water.geojson`,
+            },
+            openSpaceRaw: {
+              type: "geojson",
+              data: `${base}/open_space.geojson`,
+            },
           },
           layers: [
             { id: "bg", type: "background", paint: { "background-color": "#f7f3ea" } },
+            { id: "water", type: "fill", source: "basemap", "source-layer": "water", paint: { "fill-color": "#78b8d6", "fill-opacity": 0.7 } },
+            { id: "open-space", type: "fill", source: "basemap", "source-layer": "open_space", paint: { "fill-color": "#94b87a", "fill-opacity": 0.45 } },
             { id: "runways", type: "fill", source: "basemap", "source-layer": "runways", paint: { "fill-color": "#8f8f8f", "fill-opacity": 0.5 } },
             { id: "buildings", type: "fill", source: "basemap", "source-layer": "buildings", paint: { "fill-color": "#c8653d", "fill-opacity": 0.45 } },
             { id: "roads", type: "line", source: "basemap", "source-layer": "roads", paint: { "line-color": "#23201d", "line-width": 1.4 } },
             { id: "roads-raw", type: "line", source: "roadsRaw", paint: { "line-color": "#005f73", "line-width": 0.6, "line-opacity": 0.25 } },
             { id: "runways-raw", type: "line", source: "runwaysRaw", paint: { "line-color": "#6b7280", "line-width": 0.5, "line-opacity": 0.3 } },
+            { id: "water-raw", type: "line", source: "waterRaw", paint: { "line-color": "#2f6f91", "line-width": 0.5, "line-opacity": 0.3 } },
+            { id: "open-space-raw", type: "line", source: "openSpaceRaw", paint: { "line-color": "#4a6b3d", "line-width": 0.4, "line-opacity": 0.25 } },
           ],
         },
-        center: [-122.43, 37.77],
-        zoom: 11,
+        center: initialCenter,
+        zoom: initialZoom,
       });
 
       map.on("load", () => log("Map loaded successfully."));

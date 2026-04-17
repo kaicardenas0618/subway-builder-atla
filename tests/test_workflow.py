@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import http.client
 import json
-import subprocess
 import threading
 import time
 import unittest
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from src.debug_server import RangeRequestHandler, pick_free_port
 from src.pipeline import run_build
+from src.validation import validate_demand_integrity
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +19,7 @@ REQUIRED = {
     "runways_taxiways.geojson",
     "buildings_index.json",
     "demand_data.json",
-    "map.pmtiles",
+    "BSS.pmtiles",
     "config.json",
 }
 
@@ -61,6 +61,13 @@ class WorkflowTests(unittest.TestCase):
         for key in ["latitude", "longitude", "zoom", "bearing"]:
             self.assertIn(key, cfg["initialViewState"])
 
+    def test_demand_integrity(self):
+        demand = json.loads((ROOT / "outputs" / "dev" / "demand_data.json").read_text(encoding="utf-8"))
+        summary = validate_demand_integrity(demand)
+        self.assertGreater(summary["pointCount"], 100)
+        self.assertGreater(summary["popCount"], 1000)
+        self.assertGreater(summary["representedPopulation"], 500000)
+
     def test_byte_range_serving(self):
         from http.server import ThreadingHTTPServer
 
@@ -72,7 +79,7 @@ class WorkflowTests(unittest.TestCase):
         time.sleep(0.2)
         try:
             conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-            conn.request("GET", "/outputs/dev/map.pmtiles", headers={"Range": "bytes=0-31"})
+            conn.request("GET", "/outputs/dev/BSS.pmtiles", headers={"Range": "bytes=0-31"})
             resp = conn.getresponse()
             body = resp.read()
             self.assertEqual(resp.status, 206)
@@ -85,9 +92,16 @@ class WorkflowTests(unittest.TestCase):
         prod = json.loads((ROOT / "config" / "prod.yaml").read_text(encoding="utf-8"))
         dev = json.loads((ROOT / "config" / "dev.yaml").read_text(encoding="utf-8"))
 
+        prod_area = (prod["map"]["bbox"][2] - prod["map"]["bbox"][0]) * (prod["map"]["bbox"][3] - prod["map"]["bbox"][1])
+        dev_area = (dev["map"]["bbox"][2] - dev["map"]["bbox"][0]) * (dev["map"]["bbox"][3] - dev["map"]["bbox"][1])
+        self.assertGreater(prod_area / dev_area, 3.0)
+
         self.assertLess(dev["build"]["building_rows"] * dev["build"]["building_cols"], prod["build"]["building_rows"] * prod["build"]["building_cols"])
-        self.assertLess(dev["build"]["demand_points"], prod["build"]["demand_points"])
-        self.assertLess(dev["build"]["pop_links_per_point"], prod["build"]["pop_links_per_point"])
+        self.assertLess(dev["build"]["target_population"], prod["build"]["target_population"])
+
+        prod_cfg = json.loads((ROOT / "outputs" / "prod" / "config.json").read_text(encoding="utf-8"))
+        dev_cfg = json.loads((ROOT / "outputs" / "dev" / "config.json").read_text(encoding="utf-8"))
+        self.assertGreater(prod_cfg["population"], dev_cfg["population"] * 2)
 
 
 if __name__ == "__main__":
