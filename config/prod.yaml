@@ -1,0 +1,33 @@
+{
+  "map": {
+    "code": "FC1",
+    "name": "Fictional Coastline",
+    "description": "Dense fictional coastal metro built for in-game import and runtime testing.",
+    "creator": "subway-builder",
+    "version": "1.0.0",
+    "bbox": [-122.52, 37.70, -122.34, 37.84],
+    "thumbnailBbox": [-122.52, 37.70, -122.34, 37.84],
+    "initialViewState": {
+      "latitude": 37.77,
+      "longitude": -122.43,
+      "zoom": 11.0,
+      "bearing": 0
+    }
+  },
+  "build": {
+    "seed": 42,
+    "road_spacing_deg": 0.006,
+    "road_major_every": 5,
+    "building_rows": 64,
+    "building_cols": 56,
+    "building_size_factor": 0.58,
+    "building_cell_size_deg": 0.0015,
+    "demand_points": 40,
+    "pop_links_per_point": 14,
+    "runways": 2,
+    "pmtiles_minzoom": 9,
+    "pmtiles_maxzoom": 14,
+    "output_dir": "outputs/prod",
+    "package_name": "FC1-prod.zip"
+  }
+}

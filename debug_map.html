@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Subway Builder Debug Map</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --ink: #1c1b19;
+      --accent: #be4a2f;
+      --panel: #fffaf0;
+    }
+    html, body { margin: 0; height: 100%; background: radial-gradient(circle at 20% 10%, #fff2d6, var(--bg)); font-family: "IBM Plex Sans", "Segoe UI", sans-serif; color: var(--ink); }
+    #map { position: absolute; inset: 0; }
+    #hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      width: min(420px, calc(100% - 24px));
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      border: 1px solid #d6c7a8;
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 8px 18px rgb(0 0 0 / 0.12);
+    }
+    h1 { font-size: 16px; margin: 0 0 8px; letter-spacing: 0.2px; }
+    p { margin: 0 0 8px; font-size: 13px; line-height: 1.4; }
+    code { background: #efe7d8; padding: 1px 4px; border-radius: 4px; }
+    #log { margin: 8px 0 0; max-height: 180px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
+    .warn { color: #8b1d1d; font-weight: 600; }
+    .ok { color: #245d3a; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <section id="hud">
+    <h1>Subway Builder Debug Viewer</h1>
+    <p>Mode: <code id="mode"></code> | PMTiles: <code id="pmtilesPath"></code></p>
+    <p id="rangeStatus">Checking byte-range support...</p>
+    <pre id="log"></pre>
+  </section>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/pmtiles@3.1.0/dist/pmtiles.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode") || "prod";
+    const base = `outputs/${mode}`;
+    const pmtilesPath = `${base}/map.pmtiles`;
+
+    const modeEl = document.getElementById("mode");
+    const pmtilesEl = document.getElementById("pmtilesPath");
+    const rangeStatusEl = document.getElementById("rangeStatus");
+    const logEl = document.getElementById("log");
+    modeEl.textContent = mode;
+    pmtilesEl.textContent = pmtilesPath;
+
+    function log(msg) {
+      logEl.textContent += `[${new Date().toISOString()}] ${msg}\n`;
+    }
+
+    async function checkRangeSupport() {
+      try {
+        const res = await fetch(pmtilesPath, { headers: { Range: "bytes=0-15" } });
+        if (res.status === 206) {
+          rangeStatusEl.className = "ok";
+          rangeStatusEl.textContent = "Byte-range requests are working (HTTP 206).";
+          log("Range probe passed.");
+        } else {
+          rangeStatusEl.className = "warn";
+          rangeStatusEl.textContent = `Expected HTTP 206, got ${res.status}. Use make serve.`;
+          log(`Range probe failed with status ${res.status}.`);
+        }
+      } catch (err) {
+        rangeStatusEl.className = "warn";
+        rangeStatusEl.textContent = "Range probe failed. Use make serve and check output artifacts.";
+        log(`Range probe error: ${err}`);
+      }
+    }
+
+    async function main() {
+      await checkRangeSupport();
+
+      const protocol = new pmtiles.Protocol();
+      maplibregl.addProtocol("pmtiles", protocol.tile);
+
+      const map = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+          sources: {
+            basemap: {
+              type: "vector",
+              url: `pmtiles://${location.origin}/${pmtilesPath}`,
+            },
+            roadsRaw: {
+              type: "geojson",
+              data: `${base}/roads.geojson`,
+            },
+            runwaysRaw: {
+              type: "geojson",
+              data: `${base}/runways_taxiways.geojson`,
+            },
+          },
+          layers: [
+            { id: "bg", type: "background", paint: { "background-color": "#f7f3ea" } },
+            { id: "runways", type: "fill", source: "basemap", "source-layer": "runways", paint: { "fill-color": "#8f8f8f", "fill-opacity": 0.5 } },
+            { id: "buildings", type: "fill", source: "basemap", "source-layer": "buildings", paint: { "fill-color": "#c8653d", "fill-opacity": 0.45 } },
+            { id: "roads", type: "line", source: "basemap", "source-layer": "roads", paint: { "line-color": "#23201d", "line-width": 1.4 } },
+            { id: "roads-raw", type: "line", source: "roadsRaw", paint: { "line-color": "#005f73", "line-width": 0.6, "line-opacity": 0.25 } },
+            { id: "runways-raw", type: "line", source: "runwaysRaw", paint: { "line-color": "#6b7280", "line-width": 0.5, "line-opacity": 0.3 } },
+          ],
+        },
+        center: [-122.43, 37.77],
+        zoom: 11,
+      });
+
+      map.on("load", () => log("Map loaded successfully."));
+      map.on("error", (e) => log(`Map error: ${JSON.stringify(e && e.error ? e.error.message : e)}`));
+    }
+
+    main().catch((err) => {
+      log(`Fatal viewer error: ${err}`);
+      rangeStatusEl.className = "warn";
+    });
+  </script>
+</body>
+</html>

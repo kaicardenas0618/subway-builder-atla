@@ -1,0 +1,33 @@
+{
+  "map": {
+    "code": "FC1",
+    "name": "Fictional Coastline (Downtown Core)",
+    "description": "Small dense downtown/core slice for fast production-compatible map build loops.",
+    "creator": "subway-builder",
+    "version": "1.0.0-dev",
+    "bbox": [-122.45, 37.75, -122.40, 37.79],
+    "thumbnailBbox": [-122.45, 37.75, -122.40, 37.79],
+    "initialViewState": {
+      "latitude": 37.772,
+      "longitude": -122.425,
+      "zoom": 12.5,
+      "bearing": 0
+    }
+  },
+  "build": {
+    "seed": 7,
+    "road_spacing_deg": 0.004,
+    "road_major_every": 4,
+    "building_rows": 18,
+    "building_cols": 16,
+    "building_size_factor": 0.62,
+    "building_cell_size_deg": 0.0012,
+    "demand_points": 10,
+    "pop_links_per_point": 6,
+    "runways": 1,
+    "pmtiles_minzoom": 10,
+    "pmtiles_maxzoom": 14,
+    "output_dir": "outputs/dev",
+    "package_name": "FC1-dev.zip"
+  }
+}
