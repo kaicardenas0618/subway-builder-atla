@@ -64,6 +64,7 @@ def run_build(mode: str, clean: bool = False) -> tuple[Path, Path]:
             "demand_data.json",
             "water.geojson",
             "open_space.geojson",
+            "campuses.geojson",
             "config.json",
             cfg["build"]["package_name"],
         ]:

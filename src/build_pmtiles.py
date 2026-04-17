@@ -16,6 +16,7 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
     buildings_path = output_dir / "buildings_index.json"
     water_path = output_dir / "water.geojson"
     open_space_path = output_dir / "open_space.geojson"
+    campuses_path = output_dir / "campuses.geojson"
     pmtiles_filename = f"{cfg['map']['code']}.pmtiles"
     pmtiles_path = output_dir / pmtiles_filename
 
@@ -24,6 +25,8 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
         inputs.append(water_path)
     if open_space_path.exists():
         inputs.append(open_space_path)
+    if campuses_path.exists():
+        inputs.append(campuses_path)
 
     newest_input = max(p.stat().st_mtime for p in inputs)
     if pmtiles_path.exists() and pmtiles_path.stat().st_mtime >= newest_input:
@@ -65,8 +68,9 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
             minzoom,
             "-z",
             maxzoom,
-            "--drop-densest-as-needed",
+            "--coalesce-densest-as-needed",
             "--extend-zooms-if-still-dropping",
+            "--no-line-simplification",
             "-L",
             f"roads:{roads_path}",
             "-L",
@@ -79,6 +83,8 @@ def build_pmtiles(cfg: dict[str, Any], output_dir: Path) -> Path:
             cmd += ["-L", f"water:{water_path}"]
         if open_space_path.exists():
             cmd += ["-L", f"open_space:{open_space_path}"]
+        if campuses_path.exists():
+            cmd += ["-L", f"campuses:{campuses_path}"]
 
         start = time.time()
         subprocess.run(cmd, check=True)

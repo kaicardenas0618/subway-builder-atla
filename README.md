@@ -1,20 +1,20 @@
 # Avatar: The Last Airbender Subway Builder Maps
 
-Current map build in this repository: Ba Sing Se.
+Current city: Ba Sing Se.
 
-This project generates importable game map packages with a synthetic city and synthetic demand model.
+This repository generates a realism-driven, synthetic, Ba Sing Se-inspired megacity while preserving a stable game import/load package path.
 
 ## Public Workflow
 
-- `make prod`: full metropolitan Ba Sing Se build
-- `make dev`: realistic CBD/core slice build
-- `make serve`: serve `debug_map.html` and existing outputs without rebuilding
+- `make prod`: full Ba Sing Se megacity build
+- `make dev`: CBD/core slice of the same city logic
+- `make serve`: static debug viewer for already-built outputs
 
-Both `prod` and `dev` generate production-compatible, importable map archives.
+Both prod and dev are production-compatible and importable.
 
 ## Outputs
 
-For both modes, the pipeline produces:
+Each build writes:
 
 - `roads.geojson`
 - `runways_taxiways.geojson`
@@ -22,31 +22,22 @@ For both modes, the pipeline produces:
 - `demand_data.json`
 - `<map_code>.pmtiles` (currently `BSS.pmtiles`)
 - `config.json`
-- final archive zip
+- importable archive
 
 Archive paths:
 
 - prod: `outputs/prod/BSS-prod.zip`
 - dev: `outputs/dev/BSS-dev.zip`
 
-## Demand Model
+## Generation Model
 
-Demand generation is synthetic and deterministic from generated city geometry.
+- City is synthetic (no real Census/LODES input).
+- Macro form follows a modernized Ba Sing Se logic: ring corridors, radial spines, layered districts, core intensity, airports, campuses, parks, and lake/water edge.
+- Roads use hierarchical classes: expressway, trunk, arterial, collector, local.
+- Buildings are generated from district-aware blocks and parcels (not a single global row/column lattice).
+- Demand is synthetic mesozone-level OD with strict referential integrity validation.
 
-- No real LODES input is used.
-- No Census dependency is used.
-- `reference/create_US_demand_file.py` is used only as a schema/modeling reference for:
-  - `points` / `pops` structure
-  - referential integrity discipline
-  - aggregated home-work cohort pattern
+## LODES Reference Policy
 
-## Validation
-
-Builds fail on demand integrity issues (duplicate IDs, dangling residence/job references, orphan pop links, malformed travel metrics) and on core contract violations.
-
-Additional sanity checks validate:
-
-- road hierarchy presence
-- building height and footprint variability
-- core-vs-outer demand distribution
-- prod/dev material differentiation (area, population, roads, buildings)
+`reference/create_US_demand_file.py` is used only as a schema/modeling reference for demand structure and integrity discipline.
+No real-world LODES/Census pipeline is used as input.

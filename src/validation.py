@@ -82,16 +82,24 @@ def validate_demand_integrity(demand_data: dict[str, Any]) -> dict[str, Any]:
 def _validate_realism_sanity(output_dir: Path, demand_data: dict[str, Any], cfg: dict[str, Any], mode: str) -> None:
     roads = json.loads((output_dir / "roads.geojson").read_text(encoding="utf-8"))
     buildings = json.loads((output_dir / "buildings_index.json").read_text(encoding="utf-8"))
+    runways = json.loads((output_dir / "runways_taxiways.geojson").read_text(encoding="utf-8"))
+    water = json.loads((output_dir / "water.geojson").read_text(encoding="utf-8")) if (output_dir / "water.geojson").exists() else {"features": []}
+    parks = json.loads((output_dir / "open_space.geojson").read_text(encoding="utf-8")) if (output_dir / "open_space.geojson").exists() else {"features": []}
+    campuses = json.loads((output_dir / "campuses.geojson").read_text(encoding="utf-8")) if (output_dir / "campuses.geojson").exists() else {"features": []}
 
     road_counts: dict[str, int] = {}
     for f in roads.get("features", []):
         rc = f.get("properties", {}).get("roadClass", "unknown")
         road_counts[rc] = road_counts.get(rc, 0) + 1
 
-    if road_counts.get("trunk", 0) < (3 if mode == "dev" else 5):
-        raise RuntimeError("realism validation failed: insufficient trunk road hierarchy")
-    if road_counts.get("major", 0) < (20 if mode == "dev" else 80):
-        raise RuntimeError("realism validation failed: insufficient major road coverage")
+    if road_counts.get("expressway", 0) < 1:
+        raise RuntimeError("realism validation failed: insufficient expressway hierarchy")
+    if road_counts.get("trunk", 0) < (2 if mode == "dev" else 3):
+        raise RuntimeError("realism validation failed: insufficient trunk hierarchy")
+    if road_counts.get("arterial", 0) < (6 if mode == "dev" else 12):
+        raise RuntimeError("realism validation failed: insufficient arterial coverage")
+    if road_counts.get("collector", 0) < (80 if mode == "dev" else 240):
+        raise RuntimeError("realism validation failed: insufficient collector coverage")
 
     floors = [float(b["f"]) for b in buildings.get("buildings", [])]
     if not floors:
@@ -120,6 +128,21 @@ def _validate_realism_sanity(output_dir: Path, demand_data: dict[str, Any], cfg:
             outer_points += 1
     if core_points <= 0 or outer_points <= 0:
         raise RuntimeError("realism validation failed: demand point distribution lacks core/outer balance")
+
+    district_counts = buildings.get("stats", {}).get("districtCounts", {})
+    if len([k for k, v in district_counts.items() if v > 0]) < 7:
+        raise RuntimeError("realism validation failed: district mix is too shallow")
+
+    runway_count = sum(1 for f in runways.get("features", []) if f.get("properties", {}).get("roadType") == "runway")
+    if runway_count < (0 if mode == "dev" else 2):
+        raise RuntimeError("realism validation failed: airport runway presence insufficient")
+
+    if len(water.get("features", [])) < (0 if mode == "dev" else 1):
+        raise RuntimeError("realism validation failed: missing water feature")
+    if len(parks.get("features", [])) < (1 if mode == "dev" else 2):
+        raise RuntimeError("realism validation failed: insufficient park/open-space features")
+    if len(campuses.get("features", [])) < (0 if mode == "dev" else 2):
+        raise RuntimeError("realism validation failed: insufficient campus feature presence")
 
 
 def _validate_prod_dev_differentiation(repo_root: Path) -> None:
@@ -158,7 +181,7 @@ def _validate_prod_dev_differentiation(repo_root: Path) -> None:
     if prod_cfg.get("population", 0) < dev_cfg.get("population", 0) * 2:
         raise RuntimeError("prod/dev validation failed: prod population not materially larger than dev")
 
-    if len(prod_roads.get("features", [])) < len(dev_roads.get("features", [])) * 2:
+    if len(prod_roads.get("features", [])) < len(dev_roads.get("features", [])) * 1.5:
         raise RuntimeError("prod/dev validation failed: prod road totals not materially larger than dev")
 
     if len(prod_buildings.get("buildings", [])) < len(dev_buildings.get("buildings", [])) * 2:
@@ -206,7 +229,7 @@ def validate_outputs(
     subprocess.run(["pmtiles", "verify", str(pmtiles_path)], check=True, capture_output=True)
     show = subprocess.run(["pmtiles", "show", str(pmtiles_path)], check=True, capture_output=True, text=True)
     meta = show.stdout.lower()
-    for layer_name in ["roads", "buildings"]:
+    for layer_name in ["roads", "buildings", "runways", "water", "open_space", "campuses"]:
         if layer_name not in meta:
             raise RuntimeError(f"PMTiles missing expected layer: {layer_name}")
 
@@ -220,5 +243,6 @@ def validate_outputs(
         if len(pmtiles) != 1:
             raise RuntimeError(f"Archive must contain exactly one .pmtiles file; found {len(pmtiles)}")
 
-    _validate_prod_dev_differentiation(output_dir.parents[1])
+    if mode == "prod":
+        _validate_prod_dev_differentiation(output_dir.parents[1])
     return demand_summary

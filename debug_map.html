@@ -132,6 +132,10 @@
               type: "geojson",
               data: `${base}/open_space.geojson`,
             },
+            campusesRaw: {
+              type: "geojson",
+              data: `${base}/campuses.geojson`,
+            },
           },
           layers: [
             { id: "bg", type: "background", paint: { "background-color": "#f7f3ea" } },
@@ -144,6 +148,7 @@
             { id: "runways-raw", type: "line", source: "runwaysRaw", paint: { "line-color": "#6b7280", "line-width": 0.5, "line-opacity": 0.3 } },
             { id: "water-raw", type: "line", source: "waterRaw", paint: { "line-color": "#2f6f91", "line-width": 0.5, "line-opacity": 0.3 } },
             { id: "open-space-raw", type: "line", source: "openSpaceRaw", paint: { "line-color": "#4a6b3d", "line-width": 0.4, "line-opacity": 0.25 } },
+            { id: "campuses-raw", type: "line", source: "campusesRaw", paint: { "line-color": "#6a4b8c", "line-width": 0.7, "line-opacity": 0.35 } },
           ],
         },
         center: initialCenter,
